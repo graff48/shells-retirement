@@ -1,27 +1,45 @@
 import { z } from 'zod';
-import { router, publicProcedure } from '../trpc';
-import { 
-  runMonteCarloSimulation, 
+import { TRPCError } from '@trpc/server';
+import { router, protectedProcedure } from '../trpc';
+import {
+  runMonteCarloSimulation,
   calculateSustainableWithdrawalRate,
   calculateSocialSecurityBenefit,
   calculateHealthcareCosts,
-  getFullRetirementAge
+  getFullRetirementAge,
+  calculateWeightedReturns,
 } from '@retirement-advisor/calculations';
 
 export const calculationRouter = router({
-  runProjection: publicProcedure
+  runProjection: protectedProcedure
     .input(z.object({
       scenarioId: z.string(),
-      startingBalance: z.number(),
-      annualContribution: z.number(),
-      annualWithdrawal: z.number(),
-      years: z.number(),
+      startingBalance: z.number().min(0, 'Starting balance must be non-negative'),
+      annualContribution: z.number().min(0, 'Annual contribution must be non-negative'),
+      annualWithdrawal: z.number().min(0, 'Annual withdrawal must be non-negative'),
+      years: z.number().min(1, 'Years must be at least 1'),
       returnMean: z.number().default(0.07),
       returnStd: z.number().default(0.15),
     }))
     .mutation(async ({ ctx, input }) => {
       const { startingBalance, annualContribution, annualWithdrawal, years, returnMean, returnStd } = input;
-      
+
+      // Get user to compute current age
+      const user = await ctx.prisma.user.findUnique({
+        where: { id: ctx.userId },
+      });
+
+      if (!user?.birthDate) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Set your birth date in profile to run calculations',
+        });
+      }
+
+      const now = new Date();
+      const currentAge = now.getFullYear() - user.birthDate.getFullYear() -
+        (now < new Date(now.getFullYear(), user.birthDate.getMonth(), user.birthDate.getDate()) ? 1 : 0);
+
       // Run Monte Carlo simulation
       const monteCarloResult = runMonteCarloSimulation({
         startingBalance,
@@ -59,7 +77,7 @@ export const calculationRouter = router({
             data: {
               scenarioId: input.scenarioId,
               year: new Date().getFullYear() + year,
-              age: 0, // Will be calculated based on user's current age
+              age: currentAge + year,
               startingBalance: year === 0 ? startingBalance : monteCarloResult.median[year - 1],
               contributions: annualContribution,
               withdrawals: annualWithdrawal,
@@ -77,7 +95,7 @@ export const calculationRouter = router({
       };
     }),
 
-  calculateSocialSecurity: publicProcedure
+  calculateSocialSecurity: protectedProcedure
     .input(z.object({
       aime: z.number(),
       claimingAge: z.number(),
@@ -86,7 +104,7 @@ export const calculationRouter = router({
     .query(({ input }) => {
       const fra = getFullRetirementAge(input.birthYear);
       const monthlyBenefit = calculateSocialSecurityBenefit(input.aime, input.claimingAge, fra);
-      
+
       return {
         monthlyBenefit,
         annualBenefit: monthlyBenefit * 12,
@@ -94,7 +112,7 @@ export const calculationRouter = router({
       };
     }),
 
-  calculateHealthcare: publicProcedure
+  calculateHealthcare: protectedProcedure
     .input(z.object({
       currentAge: z.number(),
       retirementAge: z.number(),
@@ -107,19 +125,34 @@ export const calculationRouter = router({
           cost: calculateHealthcareCosts(age),
         });
       }
-      
+
       return years;
     }),
 
-  runFullScenario: publicProcedure
+  runFullScenario: protectedProcedure
     .input(z.object({
       scenarioId: z.string(),
-      userId: z.string(),
     }))
     .mutation(async ({ ctx, input }) => {
+      // Get user profile for birth date
+      const user = await ctx.prisma.user.findUnique({
+        where: { id: ctx.userId },
+      });
+
+      if (!user?.birthDate) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Set your birth date in profile to run calculations',
+        });
+      }
+
+      const now = new Date();
+      const currentAge = now.getFullYear() - user.birthDate.getFullYear() -
+        (now < new Date(now.getFullYear(), user.birthDate.getMonth(), user.birthDate.getDate()) ? 1 : 0);
+
       // Get user's accounts
       const accounts = await ctx.prisma.account.findMany({
-        where: { userId: input.userId },
+        where: { userId: ctx.userId },
       });
 
       // Get scenario details
@@ -128,26 +161,54 @@ export const calculationRouter = router({
       });
 
       if (!scenario) {
-        throw new Error('Scenario not found');
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Scenario not found' });
       }
 
       // Calculate totals
-      const totalBalance = accounts.reduce((sum, acc) => sum + Number(acc.currentBalance), 0);
-      const annualContribution = accounts.reduce((sum, acc) => sum + Number(acc.monthlyContribution) * 12, 0);
+      let totalBalance = 0;
+      let annualContribution = 0;
+      for (const acc of accounts) {
+        totalBalance += Number(acc.currentBalance);
+        annualContribution += Number(acc.monthlyContribution) * 12;
+      }
       const annualExpenses = Number(scenario.essentialSpending) + Number(scenario.discretionarySpending);
 
       // Calculate years until retirement
-      const currentAge = 45; // TODO: Get from user profile
       const yearsUntilRetirement = scenario.retirementAge - currentAge;
       const retirementYears = 30; // Project 30 years into retirement
+
+      // Determine return parameters: use allocation-weighted if user hasn't set an explicit return
+      let returnMean: number;
+      let returnStd: number;
+
+      if (scenario.expectedReturn !== 7.0) {
+        // User explicitly set a custom expected return — use it
+        returnMean = scenario.expectedReturn / 100;
+        returnStd = 0.15;
+      } else if (accounts.length > 0) {
+        // Use allocation-weighted returns from accounts
+        const weighted = calculateWeightedReturns(
+          accounts.map((a: typeof accounts[number]) => ({
+            currentBalance: Number(a.currentBalance),
+            stockAllocation: a.stockAllocation,
+            bondAllocation: a.bondAllocation,
+            cashAllocation: a.cashAllocation,
+          }))
+        );
+        returnMean = weighted.weightedMean;
+        returnStd = weighted.weightedStd;
+      } else {
+        returnMean = scenario.expectedReturn / 100;
+        returnStd = 0.15;
+      }
 
       // Run projection
       const projectionResult = runMonteCarloSimulation({
         startingBalance: totalBalance,
         annualContribution,
         years: yearsUntilRetirement + retirementYears,
-        returnMean: scenario.expectedReturn / 100,
-        returnStd: 0.15,
+        returnMean,
+        returnStd,
         runs: 10000,
       });
 

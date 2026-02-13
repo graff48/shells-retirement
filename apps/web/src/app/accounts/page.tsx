@@ -7,19 +7,18 @@ import { AccountModal } from '@/components/forms/AccountModal';
 
 export default function AccountsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const userId = 'test-user-id'; // TODO: Get from auth
-  
-  const { data: accounts, isLoading } = trpc.account.list.useQuery({ userId });
+
+  const { data: accounts, isLoading } = trpc.account.list.useQuery();
   const deleteAccount = trpc.account.delete.useMutation({
     onSuccess: () => {
-      utils.account.list.invalidate({ userId });
+      utils.account.list.invalidate();
     },
   });
-  
+
   const utils = trpc.useContext();
 
-  const totalBalance = accounts?.reduce((sum, acc) => sum + Number(acc.currentBalance), 0) || 0;
-  const totalMonthly = accounts?.reduce((sum, acc) => sum + Number(acc.monthlyContribution), 0) || 0;
+  const totalBalance = accounts?.reduce((sum: number, acc: { currentBalance: number }) => sum + Number(acc.currentBalance), 0) || 0;
+  const totalMonthly = accounts?.reduce((sum: number, acc: { monthlyContribution: number }) => sum + Number(acc.monthlyContribution), 0) || 0;
 
   if (isLoading) {
     return (
@@ -36,10 +35,10 @@ export default function AccountsPage() {
       <div className="max-w-4xl mx-auto">
         <div className="flex justify-between items-center mb-8">
           <div>
-            <Link href="/" className="text-blue-600 hover:underline">← Back to Home</Link>
+            <Link href="/" className="text-blue-600 hover:underline">&larr; Back to Home</Link>
             <h1 className="text-3xl font-bold mt-4">Retirement Accounts</h1>
           </div>
-          <button 
+          <button
             onClick={() => setIsModalOpen(true)}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
           >
@@ -50,17 +49,17 @@ export default function AccountsPage() {
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
           <h2 className="text-xl font-semibold mb-4">Your Nest Egg Summary</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <SummaryCard 
-              title="Total Balance" 
-              value={`$${totalBalance.toLocaleString()}`} 
+            <SummaryCard
+              title="Total Balance"
+              value={`$${totalBalance.toLocaleString()}`}
             />
-            <SummaryCard 
-              title="Monthly Contribution" 
-              value={`$${totalMonthly.toLocaleString()}`} 
+            <SummaryCard
+              title="Monthly Contribution"
+              value={`$${totalMonthly.toLocaleString()}`}
             />
-            <SummaryCard 
-              title="Number of Accounts" 
-              value={accounts?.length.toString() || '0'} 
+            <SummaryCard
+              title="Number of Accounts"
+              value={accounts?.length.toString() || '0'}
             />
           </div>
         </div>
@@ -79,7 +78,7 @@ export default function AccountsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {accounts.map((account) => (
+                {accounts.map((account: any) => (
                   <tr key={account.id}>
                     <td className="px-6 py-4">{account.name}</td>
                     <td className="px-6 py-4">
@@ -95,7 +94,7 @@ export default function AccountsPage() {
                     <td className="px-6 py-4">${Number(account.monthlyContribution).toLocaleString()}</td>
                     <td className="px-6 py-4">{account.stockAllocation}/{account.bondAllocation}/{account.cashAllocation}</td>
                     <td className="px-6 py-4">
-                      <button 
+                      <button
                         onClick={() => {
                           if (confirm('Delete this account?')) {
                             deleteAccount.mutate({ id: account.id });
@@ -118,17 +117,16 @@ export default function AccountsPage() {
         </div>
 
         <div className="mt-8 flex justify-center">
-          <Link 
+          <Link
             href="/expenses"
             className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
           >
-            Next: Expenses →
+            Next: Expenses &rarr;
           </Link>
         </div>
       </div>
 
       <AccountModal
-        userId={userId}
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSuccess={() => {}}

@@ -22,6 +22,11 @@ export function TRPCProvider({ children }: { children: React.ReactNode }) {
       links: [
         httpBatchLink({
           url: '/api/trpc',
+          headers() {
+            return {
+              'x-user-id': 'test-user-id',
+            };
+          },
         }),
       ],
     })

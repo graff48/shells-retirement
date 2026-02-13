@@ -17,7 +17,7 @@ export function LifestyleCard({ scenarioId, description }: LifestyleCardProps) {
   const generateLifestyle = trpc.ai.generateLifestyle.useMutation({
     onSuccess: (data) => {
       setLocalDescription(data.description);
-      setSource(data.source);
+      setSource(data.source as 'ai' | 'fallback');
       setIsGenerating(false);
       utils.scenario.list.invalidate();
     },

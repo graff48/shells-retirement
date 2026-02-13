@@ -103,6 +103,62 @@ export function runDeterministicProjection(
 }
 
 /**
+ * Asset class return assumptions
+ */
+const ASSET_CLASS_PARAMS = {
+  stocks: { mean: 0.10, std: 0.18 },
+  bonds: { mean: 0.04, std: 0.06 },
+  cash: { mean: 0.02, std: 0.01 },
+};
+
+export interface AccountAllocation {
+  currentBalance: number;
+  stockAllocation: number;
+  bondAllocation: number;
+  cashAllocation: number;
+}
+
+/**
+ * Calculate portfolio-weighted mean return and standard deviation
+ * based on per-account asset allocations, weighted by account balance.
+ */
+export function calculateWeightedReturns(
+  accounts: AccountAllocation[]
+): { weightedMean: number; weightedStd: number } {
+  const totalBalance = accounts.reduce((sum, a) => sum + a.currentBalance, 0);
+
+  if (totalBalance === 0) {
+    // Default to a balanced portfolio if no balance
+    return { weightedMean: 0.07, weightedStd: 0.15 };
+  }
+
+  let portfolioStockPct = 0;
+  let portfolioBondPct = 0;
+  let portfolioCashPct = 0;
+
+  for (const account of accounts) {
+    const weight = account.currentBalance / totalBalance;
+    portfolioStockPct += (account.stockAllocation / 100) * weight;
+    portfolioBondPct += (account.bondAllocation / 100) * weight;
+    portfolioCashPct += (account.cashAllocation / 100) * weight;
+  }
+
+  const weightedMean =
+    portfolioStockPct * ASSET_CLASS_PARAMS.stocks.mean +
+    portfolioBondPct * ASSET_CLASS_PARAMS.bonds.mean +
+    portfolioCashPct * ASSET_CLASS_PARAMS.cash.mean;
+
+  // Simplified portfolio std: weighted sum of individual stds
+  // (ignores correlation, which is a reasonable approximation)
+  const weightedStd =
+    portfolioStockPct * ASSET_CLASS_PARAMS.stocks.std +
+    portfolioBondPct * ASSET_CLASS_PARAMS.bonds.std +
+    portfolioCashPct * ASSET_CLASS_PARAMS.cash.std;
+
+  return { weightedMean, weightedStd };
+}
+
+/**
  * Calculate sustainable withdrawal rate
  */
 export function calculateSustainableWithdrawalRate(

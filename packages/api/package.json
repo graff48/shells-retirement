@@ -10,6 +10,8 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "@retirement-advisor/ai": "workspace:*",
+    "@retirement-advisor/calculations": "workspace:*",
     "@retirement-advisor/database": "workspace:*",
     "@retirement-advisor/types": "workspace:*",
     "@trpc/server": "^10.45.0",

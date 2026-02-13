@@ -1,21 +1,19 @@
 import { z } from 'zod';
-import { router, publicProcedure } from '../trpc';
+import { router, protectedProcedure } from '../trpc';
 
 export const expenseRouter = router({
-  list: publicProcedure
-    .input(z.object({ userId: z.string() }))
-    .query(async ({ ctx, input }) => {
+  list: protectedProcedure
+    .query(async ({ ctx }) => {
       return ctx.prisma.expense.findMany({
-        where: { userId: input.userId },
+        where: { userId: ctx.userId },
       });
     }),
 
-  create: publicProcedure
+  create: protectedProcedure
     .input(z.object({
-      userId: z.string(),
       category: z.enum(['housing', 'healthcare', 'food', 'transportation', 'utilities', 'insurance', 'debt', 'dining_out', 'travel', 'entertainment', 'hobbies', 'shopping', 'gifts_charity', 'flex']),
       subcategory: z.string().optional(),
-      amount: z.number(),
+      amount: z.number().min(0, 'Amount must be non-negative'),
       type: z.enum(['essential', 'discretionary']),
       inflationRate: z.number().default(3.0),
       startAge: z.number().default(0),
@@ -24,16 +22,19 @@ export const expenseRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       return ctx.prisma.expense.create({
-        data: input,
+        data: {
+          ...input,
+          userId: ctx.userId,
+        },
       });
     }),
 
-  update: publicProcedure
+  update: protectedProcedure
     .input(z.object({
       id: z.string(),
       data: z.object({
         category: z.enum(['housing', 'healthcare', 'food', 'transportation', 'utilities', 'insurance', 'debt', 'dining_out', 'travel', 'entertainment', 'hobbies', 'shopping', 'gifts_charity', 'flex']).optional(),
-        amount: z.number().optional(),
+        amount: z.number().min(0, 'Amount must be non-negative').optional(),
         type: z.enum(['essential', 'discretionary']).optional(),
         inflationRate: z.number().optional(),
         startAge: z.number().optional(),
@@ -47,7 +48,7 @@ export const expenseRouter = router({
       });
     }),
 
-  delete: publicProcedure
+  delete: protectedProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       return ctx.prisma.expense.delete({

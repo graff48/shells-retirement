@@ -23,19 +23,18 @@ const scenarioSchema = z.object({
 type ScenarioFormData = z.infer<typeof scenarioSchema>;
 
 interface ScenarioModalProps {
-  userId: string;
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
 }
 
-export function ScenarioModal({ userId, isOpen, onClose, onSuccess }: ScenarioModalProps) {
+export function ScenarioModal({ isOpen, onClose, onSuccess }: ScenarioModalProps) {
   const [error, setError] = useState<string | null>(null);
   const utils = trpc.useContext();
-  
+
   const createScenario = trpc.scenario.create.useMutation({
     onSuccess: () => {
-      utils.scenario.list.invalidate({ userId });
+      utils.scenario.list.invalidate();
       onSuccess();
       onClose();
     },
@@ -63,10 +62,7 @@ export function ScenarioModal({ userId, isOpen, onClose, onSuccess }: ScenarioMo
 
   const onSubmit = (data: ScenarioFormData) => {
     setError(null);
-    createScenario.mutate({
-      ...data,
-      userId,
-    });
+    createScenario.mutate(data);
   };
 
   if (!isOpen) return null;
@@ -76,7 +72,7 @@ export function ScenarioModal({ userId, isOpen, onClose, onSuccess }: ScenarioMo
       <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold">Create Scenario</h2>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">✕</button>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">&times;</button>
         </div>
 
         {error && (

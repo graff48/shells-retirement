@@ -7,22 +7,21 @@ import { ExpenseModal } from '@/components/forms/ExpenseModal';
 
 export default function ExpensesPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const userId = 'test-user-id';
-  
-  const { data: expenses, isLoading } = trpc.expense.list.useQuery({ userId });
+
+  const { data: expenses, isLoading } = trpc.expense.list.useQuery();
   const utils = trpc.useContext();
-  
+
   const deleteExpense = trpc.expense.delete.useMutation({
     onSuccess: () => {
-      utils.expense.list.invalidate({ userId });
+      utils.expense.list.invalidate();
     },
   });
 
-  const essentialExpenses = expenses?.filter(e => e.type === 'essential') || [];
-  const discretionaryExpenses = expenses?.filter(e => e.type === 'discretionary') || [];
-  
-  const essentialTotal = essentialExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
-  const discretionaryTotal = discretionaryExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
+  const essentialExpenses = expenses?.filter((e: any) => e.type === 'essential') || [];
+  const discretionaryExpenses = expenses?.filter((e: any) => e.type === 'discretionary') || [];
+
+  const essentialTotal = essentialExpenses.reduce((sum: number, e: any) => sum + Number(e.amount), 0);
+  const discretionaryTotal = discretionaryExpenses.reduce((sum: number, e: any) => sum + Number(e.amount), 0);
   const total = essentialTotal + discretionaryTotal;
 
   if (isLoading) {
@@ -40,10 +39,10 @@ export default function ExpensesPage() {
       <div className="max-w-4xl mx-auto">
         <div className="flex justify-between items-center mb-8">
           <div>
-            <Link href="/accounts" className="text-blue-600 hover:underline">← Back to Accounts</Link>
+            <Link href="/accounts" className="text-blue-600 hover:underline">&larr; Back to Accounts</Link>
             <h1 className="text-3xl font-bold mt-4">Retirement Expenses</h1>
           </div>
-          <button 
+          <button
             onClick={() => setIsModalOpen(true)}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
           >
@@ -52,8 +51,8 @@ export default function ExpensesPage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-          <ExpenseCategory 
-            title="Essential Expenses" 
+          <ExpenseCategory
+            title="Essential Expenses"
             total={`$${essentialTotal.toLocaleString()}`}
             items={essentialExpenses}
             onDelete={(id) => {
@@ -62,9 +61,9 @@ export default function ExpensesPage() {
               }
             }}
           />
-          
-          <ExpenseCategory 
-            title="Discretionary Expenses" 
+
+          <ExpenseCategory
+            title="Discretionary Expenses"
             total={`$${discretionaryTotal.toLocaleString()}`}
             items={discretionaryExpenses}
             onDelete={(id) => {
@@ -94,23 +93,22 @@ export default function ExpensesPage() {
         </div>
 
         <div className="flex justify-between">
-          <Link 
+          <Link
             href="/accounts"
             className="px-6 py-3 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300"
           >
-            ← Back to Accounts
+            &larr; Back to Accounts
           </Link>
-          <Link 
+          <Link
             href="/scenarios"
             className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
           >
-            Next: Scenarios →
+            Next: Scenarios &rarr;
           </Link>
         </div>
       </div>
 
       <ExpenseModal
-        userId={userId}
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSuccess={() => {}}
@@ -119,14 +117,14 @@ export default function ExpensesPage() {
   );
 }
 
-function ExpenseCategory({ 
-  title, 
-  total, 
+function ExpenseCategory({
+  title,
+  total,
   items,
   onDelete,
-}: { 
-  title: string; 
-  total: string; 
+}: {
+  title: string;
+  total: string;
   items: { id: string; category: string; amount: number; type: string }[];
   onDelete: (id: string) => void;
 }) {
@@ -138,7 +136,7 @@ function ExpenseCategory({
         <h2 className="text-xl font-semibold">{title}</h2>
         <span className="text-xl font-bold">{total}</span>
       </div>
-      
+
       {items.length > 0 ? (
         <div className="space-y-2">
           {items.map((item) => (
@@ -146,7 +144,7 @@ function ExpenseCategory({
               <span className="text-gray-700">{formatCategory(item.category)}</span>
               <div className="flex items-center gap-3">
                 <span className="font-medium">${Number(item.amount).toLocaleString()}</span>
-                <button 
+                <button
                   onClick={() => onDelete(item.id)}
                   className="text-red-600 hover:underline text-sm"
                 >

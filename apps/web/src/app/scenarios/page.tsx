@@ -10,21 +10,21 @@ export default function ScenariosPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedScenario, setSelectedScenario] = useState<string | null>(null);
   const [calculatingId, setCalculatingId] = useState<string | null>(null);
-  const userId = 'test-user-id';
-  
-  const { data: scenarios, isLoading } = trpc.scenario.list.useQuery({ userId });
-  const { data: accounts } = trpc.account.list.useQuery({ userId });
+
+  const { data: scenarios, isLoading } = trpc.scenario.list.useQuery();
+  const { data: accounts } = trpc.account.list.useQuery();
+  const { data: user } = trpc.user.getById.useQuery();
   const utils = trpc.useContext();
-  
+
   const deleteScenario = trpc.scenario.delete.useMutation({
     onSuccess: () => {
-      utils.scenario.list.invalidate({ userId });
+      utils.scenario.list.invalidate();
     },
   });
 
   const runCalculation = trpc.calculation.runFullScenario.useMutation({
     onSuccess: () => {
-      utils.scenario.list.invalidate({ userId });
+      utils.scenario.list.invalidate();
       setCalculatingId(null);
     },
     onError: () => {
@@ -34,14 +34,22 @@ export default function ScenariosPage() {
 
   const generateRecommendations = trpc.ai.generateRecommendations.useMutation({
     onSuccess: () => {
-      utils.scenario.list.invalidate({ userId });
+      utils.scenario.list.invalidate();
     },
   });
 
-  const totalBalance = accounts?.reduce((sum, acc) => sum + Number(acc.currentBalance), 0) || 0;
-  const currentAge = 45;
+  const totalBalance = accounts?.reduce((sum: number, acc: { currentBalance: number }) => sum + Number(acc.currentBalance), 0) || 0;
 
-  const selectedScenarioData = scenarios?.find(s => s.id === selectedScenario);
+  // Calculate current age from user's birth date
+  let currentAge: number | null = null;
+  if (user?.birthDate) {
+    const now = new Date();
+    const birth = new Date(user.birthDate);
+    currentAge = now.getFullYear() - birth.getFullYear() -
+      (now < new Date(now.getFullYear(), birth.getMonth(), birth.getDate()) ? 1 : 0);
+  }
+
+  const selectedScenarioData = scenarios?.find((s: any) => s.id === selectedScenario);
 
   if (isLoading) {
     return (
@@ -58,10 +66,10 @@ export default function ScenariosPage() {
       <div className="max-w-6xl mx-auto">
         <div className="flex justify-between items-center mb-8">
           <div>
-            <Link href="/expenses" className="text-blue-600 hover:underline">← Back to Expenses</Link>
+            <Link href="/expenses" className="text-blue-600 hover:underline">&larr; Back to Expenses</Link>
             <h1 className="text-3xl font-bold mt-4">Retirement Scenarios</h1>
           </div>
-          <button 
+          <button
             onClick={() => setIsModalOpen(true)}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
           >
@@ -72,13 +80,13 @@ export default function ScenariosPage() {
         <div className="bg-blue-50 rounded-lg p-6 mb-8">
           <h2 className="text-xl font-semibold mb-4">Quick Stats</h2>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <StatCard label="Current Age" value={currentAge.toString()} />
+            <StatCard label="Current Age" value={currentAge !== null ? currentAge.toString() : 'Set birth date'} />
             <StatCard label="Total Savings" value={`$${totalBalance.toLocaleString()}`} />
             <StatCard label="Scenarios" value={scenarios?.length.toString() || '0'} />
-            <StatCard 
-              label="Best Success Rate" 
-              value={`${Math.round(scenarios?.reduce((max, s) => Math.max(max, s.results?.[0]?.successProbability || 0), 0) || 0)}%`}
-              highlight 
+            <StatCard
+              label="Best Success Rate"
+              value={`${Math.round(scenarios?.reduce((max: number, s: any) => Math.max(max, s.results?.[0]?.successProbability || 0), 0) || 0)}%`}
+              highlight
             />
           </div>
         </div>
@@ -98,14 +106,14 @@ export default function ScenariosPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
-                    {scenarios.map((scenario) => {
+                    {scenarios.map((scenario: any) => {
                       const result = scenario.results?.[0];
                       const successRate = result?.successProbability || 0;
                       const annualSpending = Number(scenario.essentialSpending) + Number(scenario.discretionarySpending);
                       const isSelected = selectedScenario === scenario.id;
-                      
+
                       return (
-                        <tr 
+                        <tr
                           key={scenario.id}
                           className={isSelected ? 'bg-blue-50' : ''}
                         >
@@ -138,14 +146,14 @@ export default function ScenariosPage() {
                           </td>
                           <td className="px-6 py-4">
                             <div className="flex gap-2">
-                              <button 
+                              <button
                                 onClick={() => handleRunCalculation(scenario.id)}
                                 disabled={calculatingId === scenario.id}
                                 className="text-blue-600 hover:underline text-sm disabled:opacity-50"
                               >
                                 {calculatingId === scenario.id ? '...' : 'Run'}
                               </button>
-                              <button 
+                              <button
                                 onClick={() => {
                                   if (confirm('Delete this scenario?')) {
                                     deleteScenario.mutate({ id: scenario.id });
@@ -180,10 +188,10 @@ export default function ScenariosPage() {
                     Refresh
                   </button>
                 </div>
-                
+
                 {selectedScenarioData.recommendations && selectedScenarioData.recommendations.length > 0 ? (
                   <div className="space-y-3">
-                    {selectedScenarioData.recommendations.map((rec) => (
+                    {selectedScenarioData.recommendations.map((rec: any) => (
                       <div key={rec.id} className="p-3 bg-gray-50 rounded border-l-4 border-blue-500">
                         <div className="flex justify-between">
                           <h4 className="font-medium">{rec.title}</h4>
@@ -213,7 +221,7 @@ export default function ScenariosPage() {
 
           <div className="lg:col-span-1">
             {selectedScenarioData ? (
-              <LifestyleCard 
+              <LifestyleCard
                 scenarioId={selectedScenarioData.id}
                 description={selectedScenarioData.lifestyleDescription}
               />
@@ -226,23 +234,22 @@ export default function ScenariosPage() {
         </div>
 
         <div className="mt-8 flex justify-between">
-          <Link 
+          <Link
             href="/expenses"
             className="px-6 py-3 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300"
           >
-            ← Back to Expenses
+            &larr; Back to Expenses
           </Link>
-          <Link 
+          <Link
             href="/"
             className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
           >
-            Back to Home →
+            Back to Home &rarr;
           </Link>
         </div>
       </div>
 
       <ScenarioModal
-        userId={userId}
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSuccess={() => {}}
@@ -252,7 +259,7 @@ export default function ScenariosPage() {
 
   function handleRunCalculation(scenarioId: string) {
     setCalculatingId(scenarioId);
-    runCalculation.mutate({ scenarioId, userId });
+    runCalculation.mutate({ scenarioId });
   }
 }
 

@@ -1,9 +1,9 @@
 import { z } from 'zod';
-import { router, publicProcedure } from '../trpc';
+import { router, protectedProcedure } from '../trpc';
 import { generateLifestyleDescription, generateLifestyleFallback } from '@retirement-advisor/ai';
 
 export const aiRouter = router({
-  generateLifestyle: publicProcedure
+  generateLifestyle: protectedProcedure
     .input(z.object({
       scenarioId: z.string(),
     }))
@@ -28,12 +28,12 @@ export const aiRouter = router({
       }
 
       const user = await ctx.prisma.user.findUnique({
-        where: { id: scenario.userId },
+        where: { id: ctx.userId },
       });
 
       const annualBudget = Number(scenario.essentialSpending) + Number(scenario.discretionarySpending);
-      const location = scenario.targetCity && scenario.targetState 
-        ? `${scenario.targetCity}, ${scenario.targetState}` 
+      const location = scenario.targetCity && scenario.targetState
+        ? `${scenario.targetCity}, ${scenario.targetState}`
         : 'your current location';
       const housingStatus = 'homeowner'; // TODO: Get from user profile
       const healthcarePhase = scenario.retirementAge < 65 ? 'pre-medicare' : 'medicare';
@@ -49,7 +49,7 @@ export const aiRouter = router({
       });
 
       let description: string;
-      
+
       if (aiResult.success) {
         description = aiResult.content;
       } else {
@@ -75,7 +75,7 @@ export const aiRouter = router({
       };
     }),
 
-  generateRecommendations: publicProcedure
+  generateRecommendations: protectedProcedure
     .input(z.object({
       scenarioId: z.string(),
     }))
@@ -96,12 +96,15 @@ export const aiRouter = router({
 
       const result = scenario.results[0];
       const annualSpending = Number(scenario.essentialSpending) + Number(scenario.discretionarySpending);
-      
+
       // Get accounts for total balance
       const accounts = await ctx.prisma.account.findMany({
-        where: { userId: scenario.userId },
+        where: { userId: ctx.userId },
       });
-      const totalBalance = accounts.reduce((sum, acc) => sum + Number(acc.currentBalance), 0);
+      let totalBalance = 0;
+      for (const acc of accounts) {
+        totalBalance += Number(acc.currentBalance);
+      }
 
       // Generate recommendations based on success rate
       const recommendations = [];
@@ -160,7 +163,7 @@ export const aiRouter = router({
       return recommendations;
     }),
 
-  streamLifestyle: publicProcedure
+  streamLifestyle: protectedProcedure
     .input(z.object({
       annualBudget: z.number(),
       location: z.string(),

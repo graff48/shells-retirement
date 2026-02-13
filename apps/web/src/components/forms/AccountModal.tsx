@@ -22,19 +22,18 @@ const accountSchema = z.object({
 type AccountFormData = z.infer<typeof accountSchema>;
 
 interface AccountModalProps {
-  userId: string;
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
 }
 
-export function AccountModal({ userId, isOpen, onClose, onSuccess }: AccountModalProps) {
+export function AccountModal({ isOpen, onClose, onSuccess }: AccountModalProps) {
   const [error, setError] = useState<string | null>(null);
   const utils = trpc.useContext();
-  
+
   const createAccount = trpc.account.create.useMutation({
     onSuccess: () => {
-      utils.account.list.invalidate({ userId });
+      utils.account.list.invalidate();
       onSuccess();
       onClose();
     },
@@ -71,10 +70,7 @@ export function AccountModal({ userId, isOpen, onClose, onSuccess }: AccountModa
       return;
     }
     setError(null);
-    createAccount.mutate({
-      ...data,
-      userId,
-    });
+    createAccount.mutate(data);
   };
 
   if (!isOpen) return null;
@@ -84,7 +80,7 @@ export function AccountModal({ userId, isOpen, onClose, onSuccess }: AccountModa
       <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold">Add Account</h2>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">✕</button>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">&times;</button>
         </div>
 
         {error && (

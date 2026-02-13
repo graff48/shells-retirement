@@ -1,12 +1,11 @@
 import { z } from 'zod';
-import { router, publicProcedure } from '../trpc';
+import { router, protectedProcedure } from '../trpc';
 
 export const userRouter = router({
-  getById: publicProcedure
-    .input(z.object({ id: z.string() }))
-    .query(async ({ ctx, input }) => {
+  getById: protectedProcedure
+    .query(async ({ ctx }) => {
       return ctx.prisma.user.findUnique({
-        where: { id: input.id },
+        where: { id: ctx.userId },
         include: {
           accounts: true,
           expenses: true,
@@ -15,9 +14,8 @@ export const userRouter = router({
       });
     }),
 
-  update: publicProcedure
+  update: protectedProcedure
     .input(z.object({
-      id: z.string(),
       data: z.object({
         birthDate: z.date().optional(),
         gender: z.enum(['male', 'female']).optional(),
@@ -30,7 +28,7 @@ export const userRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       return ctx.prisma.user.update({
-        where: { id: input.id },
+        where: { id: ctx.userId },
         data: input.data,
       });
     }),

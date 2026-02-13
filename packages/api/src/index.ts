@@ -6,6 +6,8 @@ import { scenarioRouter } from './routers/scenario';
 import { calculationRouter } from './routers/calculation';
 import { aiRouter } from './routers/ai';
 
+export { createContext } from './trpc';
+
 export const appRouter = router({
   user: userRouter,
   account: accountRouter,

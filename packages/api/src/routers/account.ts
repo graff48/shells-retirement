@@ -1,16 +1,15 @@
 import { z } from 'zod';
-import { router, publicProcedure } from '../trpc';
+import { router, protectedProcedure } from '../trpc';
 
 export const accountRouter = router({
-  list: publicProcedure
-    .input(z.object({ userId: z.string() }))
-    .query(async ({ ctx, input }) => {
+  list: protectedProcedure
+    .query(async ({ ctx }) => {
       return ctx.prisma.account.findMany({
-        where: { userId: input.userId },
+        where: { userId: ctx.userId },
       });
     }),
 
-  getById: publicProcedure
+  getById: protectedProcedure
     .input(z.object({ id: z.string() }))
     .query(async ({ ctx, input }) => {
       return ctx.prisma.account.findUnique({
@@ -18,13 +17,12 @@ export const accountRouter = router({
       });
     }),
 
-  create: publicProcedure
+  create: protectedProcedure
     .input(z.object({
-      userId: z.string(),
       name: z.string(),
       type: z.enum(['_401k', '_403b', '_457', 'traditional_ira', 'roth_ira', 'sep_ira', 'simple_ira', 'hsa', 'taxable', 'annuity', 'pension', 'cash_savings']),
-      currentBalance: z.number(),
-      monthlyContribution: z.number().default(0),
+      currentBalance: z.number().min(0, 'Balance must be non-negative'),
+      monthlyContribution: z.number().min(0, 'Contribution must be non-negative').default(0),
       employerMatchPercent: z.number().default(0),
       employerMatchMax: z.number().default(0),
       taxTreatment: z.enum(['pre_tax', 'post_tax', 'taxable']),
@@ -32,32 +30,40 @@ export const accountRouter = router({
       bondAllocation: z.number().default(30),
       cashAllocation: z.number().default(10),
       rmdStartAge: z.number().optional(),
-    }))
+    }).refine(
+      (data) => data.stockAllocation + data.bondAllocation + data.cashAllocation === 100,
+      { message: 'Asset allocations must sum to 100%' }
+    ))
     .mutation(async ({ ctx, input }) => {
       return ctx.prisma.account.create({
         data: {
           ...input,
-          currentBalance: input.currentBalance,
-          monthlyContribution: input.monthlyContribution,
-          employerMatchPercent: input.employerMatchPercent,
-          employerMatchMax: input.employerMatchMax,
+          userId: ctx.userId,
         },
       });
     }),
 
-  update: publicProcedure
+  update: protectedProcedure
     .input(z.object({
       id: z.string(),
       data: z.object({
         name: z.string().optional(),
-        currentBalance: z.number().optional(),
-        monthlyContribution: z.number().optional(),
+        currentBalance: z.number().min(0, 'Balance must be non-negative').optional(),
+        monthlyContribution: z.number().min(0, 'Contribution must be non-negative').optional(),
         employerMatchPercent: z.number().optional(),
         employerMatchMax: z.number().optional(),
         stockAllocation: z.number().optional(),
         bondAllocation: z.number().optional(),
         cashAllocation: z.number().optional(),
-      }),
+      }).refine(
+        (data) => {
+          if (data.stockAllocation !== undefined && data.bondAllocation !== undefined && data.cashAllocation !== undefined) {
+            return data.stockAllocation + data.bondAllocation + data.cashAllocation === 100;
+          }
+          return true;
+        },
+        { message: 'Asset allocations must sum to 100%' }
+      ),
     }))
     .mutation(async ({ ctx, input }) => {
       return ctx.prisma.account.update({
@@ -66,7 +72,7 @@ export const accountRouter = router({
       });
     }),
 
-  delete: publicProcedure
+  delete: protectedProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       return ctx.prisma.account.delete({
