@@ -1,6 +1,40 @@
+'use client';
+
+import { useState } from 'react';
 import Link from 'next/link';
+import { trpc } from '@/lib/trpc';
+import { ExpenseModal } from '@/components/forms/ExpenseModal';
 
 export default function ExpensesPage() {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const userId = 'test-user-id';
+  
+  const { data: expenses, isLoading } = trpc.expense.list.useQuery({ userId });
+  const utils = trpc.useContext();
+  
+  const deleteExpense = trpc.expense.delete.useMutation({
+    onSuccess: () => {
+      utils.expense.list.invalidate({ userId });
+    },
+  });
+
+  const essentialExpenses = expenses?.filter(e => e.type === 'essential') || [];
+  const discretionaryExpenses = expenses?.filter(e => e.type === 'discretionary') || [];
+  
+  const essentialTotal = essentialExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
+  const discretionaryTotal = discretionaryExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
+  const total = essentialTotal + discretionaryTotal;
+
+  if (isLoading) {
+    return (
+      <main className="min-h-screen p-8">
+        <div className="max-w-4xl mx-auto">
+          <p>Loading expenses...</p>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen p-8">
       <div className="max-w-4xl mx-auto">
@@ -9,7 +43,10 @@ export default function ExpensesPage() {
             <Link href="/accounts" className="text-blue-600 hover:underline">← Back to Accounts</Link>
             <h1 className="text-3xl font-bold mt-4">Retirement Expenses</h1>
           </div>
-          <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+          <button 
+            onClick={() => setIsModalOpen(true)}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
             + Add Expense
           </button>
         </div>
@@ -17,27 +54,24 @@ export default function ExpensesPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           <ExpenseCategory 
             title="Essential Expenses" 
-            total="$4,500"
-            items={[
-              { name: 'Housing', amount: '$2,000', type: 'essential' },
-              { name: 'Healthcare', amount: '$800', type: 'essential' },
-              { name: 'Food', amount: '$600', type: 'essential' },
-              { name: 'Utilities', amount: '$400', type: 'essential' },
-              { name: 'Insurance', amount: '$300', type: 'essential' },
-              { name: 'Transportation', amount: '$400', type: 'essential' },
-            ]}
+            total={`$${essentialTotal.toLocaleString()}`}
+            items={essentialExpenses}
+            onDelete={(id) => {
+              if (confirm('Delete this expense?')) {
+                deleteExpense.mutate({ id });
+              }
+            }}
           />
           
           <ExpenseCategory 
             title="Discretionary Expenses" 
-            total="$2,000"
-            items={[
-              { name: 'Dining Out', amount: '$500', type: 'discretionary' },
-              { name: 'Travel', amount: '$600', type: 'discretionary' },
-              { name: 'Entertainment', amount: '$300', type: 'discretionary' },
-              { name: 'Hobbies', amount: '$400', type: 'discretionary' },
-              { name: 'Shopping', amount: '$200', type: 'discretionary' },
-            ]}
+            total={`$${discretionaryTotal.toLocaleString()}`}
+            items={discretionaryExpenses}
+            onDelete={(id) => {
+              if (confirm('Delete this expense?')) {
+                deleteExpense.mutate({ id });
+              }
+            }}
           />
         </div>
 
@@ -46,15 +80,15 @@ export default function ExpensesPage() {
           <div className="grid grid-cols-3 gap-4 mt-4">
             <div>
               <p className="text-sm text-gray-600">Essential</p>
-              <p className="text-xl font-bold">$4,500</p>
+              <p className="text-xl font-bold">${essentialTotal.toLocaleString()}</p>
             </div>
             <div>
               <p className="text-sm text-gray-600">Discretionary</p>
-              <p className="text-xl font-bold">$2,000</p>
+              <p className="text-xl font-bold">${discretionaryTotal.toLocaleString()}</p>
             </div>
             <div>
               <p className="text-sm text-gray-600">Total</p>
-              <p className="text-xl font-bold text-blue-600">$6,500</p>
+              <p className="text-xl font-bold text-blue-600">${total.toLocaleString()}</p>
             </div>
           </div>
         </div>
@@ -74,6 +108,13 @@ export default function ExpensesPage() {
           </Link>
         </div>
       </div>
+
+      <ExpenseModal
+        userId={userId}
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSuccess={() => {}}
+      />
     </main>
   );
 }
@@ -81,12 +122,16 @@ export default function ExpensesPage() {
 function ExpenseCategory({ 
   title, 
   total, 
-  items 
+  items,
+  onDelete,
 }: { 
   title: string; 
   total: string; 
-  items: { name: string; amount: string; type: string }[];
+  items: { id: string; category: string; amount: number; type: string }[];
+  onDelete: (id: string) => void;
 }) {
+  const formatCategory = (cat: string) => cat.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+
   return (
     <div className="bg-white rounded-lg shadow-md p-6">
       <div className="flex justify-between items-center mb-4">
@@ -94,17 +139,26 @@ function ExpenseCategory({
         <span className="text-xl font-bold">{total}</span>
       </div>
       
-      <div className="space-y-2">
-        {items.map((item) => (
-          <div key={item.name} className="flex justify-between items-center py-2 border-b border-gray-100">
-            <span className="text-gray-700">{item.name}</span>
-            <div className="flex items-center gap-3">
-              <span className="font-medium">{item.amount}</span>
-              <button className="text-blue-600 hover:underline text-sm">Edit</button>
+      {items.length > 0 ? (
+        <div className="space-y-2">
+          {items.map((item) => (
+            <div key={item.id} className="flex justify-between items-center py-2 border-b border-gray-100">
+              <span className="text-gray-700">{formatCategory(item.category)}</span>
+              <div className="flex items-center gap-3">
+                <span className="font-medium">${Number(item.amount).toLocaleString()}</span>
+                <button 
+                  onClick={() => onDelete(item.id)}
+                  className="text-red-600 hover:underline text-sm"
+                >
+                  Delete
+                </button>
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-gray-500 text-center py-4">No expenses added yet</p>
+      )}
     </div>
   );
 }
