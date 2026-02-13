@@ -1,0 +1,23 @@
+{
+  "name": "@retirement-advisor/api",
+  "version": "1.0.0",
+  "description": "tRPC API router",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@retirement-advisor/database": "workspace:*",
+    "@retirement-advisor/types": "workspace:*",
+    "@trpc/server": "^10.45.0",
+    "zod": "^3.22.0",
+    "superjson": "^2.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.3.0"
+  }
+}
