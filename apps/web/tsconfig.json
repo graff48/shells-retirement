@@ -20,7 +20,8 @@
     "paths": {
       "@/*": ["./src/*"],
       "@retirement-advisor/database": ["../../packages/database/src"],
-      "@retirement-advisor/types": ["../../packages/types/src"]
+      "@retirement-advisor/types": ["../../packages/types/src"],
+      "@retirement-advisor/api": ["../../packages/api/src"]
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
